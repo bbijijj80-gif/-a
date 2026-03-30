@@ -1,189 +1,196 @@
 @echo off
-chcp 65001 > nul
-title Сборщик системы Пекарня-Кофейня
+setlocal enabledelayedexpansion
+chcp 65001 > nul 2>&1
+title Bakery Coffee System Builder
+
+:: Set UTF-8 output mode for proper character display
+for /f "tokens=2 delims=:," %%a in ('findstr /c:"OSLanguage" %windir%\System32\oobe\info\system\system.txt 2^>nul') do set OSLANG=%%a
 
 echo ================================================
-echo    СБОРЩИК СИСТЕМЫ УПРАВЛЕНИЯ ПЕКАРНЕЙ-КОФЕЙНЕЙ
+echo    BAKERY COFFEE SYSTEM BUILD TOOL
 echo ================================================
 echo.
 
-:: Проверка наличия .NET SDK
-echo [1/4] Проверка наличия .NET SDK...
+:: Check for .NET SDK
+echo [1/4] Checking for .NET SDK...
 dotnet --version > nul 2>&1
 if %errorlevel% neq 0 (
-    echo ОШИБКА: .NET SDK не найден!
-    echo Установите .NET SDK 6.0 или выше с https://dotnet.microsoft.com/download
+    echo ERROR: .NET SDK not found!
+    echo Please install .NET SDK 6.0 or higher from https://dotnet.microsoft.com/download
     pause
     exit /b 1
 )
-echo .NET SDK найден. Версия:
+echo .NET SDK found. Version:
 dotnet --version
 echo.
 
-:: Проверка наличия Visual Studio Build Tools для C++
-echo [2/4] Проверка компилятора C++...
+:: Check for C++ compiler
+echo [2/4] Checking C++ compiler...
 where cl > nul 2>&1
 if %errorlevel% neq 0 (
-    echo ПРЕДУПРЕЖДЕНИЕ: Компилятор MSVC (cl.exe) не найден в PATH
-    echo Для компиляции C++ части установите Visual Studio с поддержкой C++
-    echo или Visual Studio Build Tools
+    echo WARNING: MSVC compiler (cl.exe) not found in PATH
+    echo To compile C++ part, install Visual Studio with C++ support
+    echo or Visual Studio Build Tools
     echo.
-    echo Продолжаем только сборку ядра C#...
+    echo Continuing with C# core build only...
     set BUILD_CPP=0
 ) else (
-    echo Компилятор C++ найден.
+    echo C++ compiler found.
     set BUILD_CPP=1
 )
 echo.
 
-:: Создание выходной папки
-echo [3/4] Создание структуры папок...
+:: Create output directory
+echo [3/4] Creating folder structure...
 set OUTPUT_DIR=%~dp0Build
 if exist "%OUTPUT_DIR%" rmdir /s /q "%OUTPUT_DIR%"
 mkdir "%OUTPUT_DIR%"
 mkdir "%OUTPUT_DIR%\Core"
 mkdir "%OUTPUT_DIR%\App"
-echo Выходная папка создана: %OUTPUT_DIR%
+echo Output directory created: %OUTPUT_DIR%
 echo.
 
-:: Сборка ядра на C#
-echo [4/4] Сборка ядра системы (C#)...
+:: Build C# Core
+echo [4/4] Building system core (C#)...
 cd /d "%~dp0Core"
-echo Компиляция ядра...
+echo Compiling core...
 dotnet build -c Release -o "%OUTPUT_DIR%\Core"
 if %errorlevel% neq 0 (
-    echo ОШИБКА: Не удалось собрать ядро!
+    echo ERROR: Failed to build core!
     pause
     exit /b 1
 )
-echo Ядро успешно собрано!
+echo Core built successfully!
 echo.
 
-:: Копирование DLL ядра в папку приложения
-echo Копирование ядра в папку приложения...
+:: Copy core DLLs to app folder
+echo Copying core DLLs to application folder...
 copy "%OUTPUT_DIR%\Core\BakeryCoffeeCore.dll" "%OUTPUT_DIR%\App\" > nul
 copy "%OUTPUT_DIR%\Core\BakeryCoffeeCore.pdb" "%OUTPUT_DIR%\App\" > nul 2>&1
 echo.
 
-:: Сборка C++ приложения (если возможен)
+:: Build C++ application (if possible)
 if %BUILD_CPP% equ 1 (
     echo ================================================
-    echo    СБОРКА C++ ПРИЛОЖЕНИЯ
+    echo    BUILDING C++ APPLICATION
     echo ================================================
     echo.
     
     cd /d "%~dp0App"
     
-    :: Находим путь к Visual Studio
+    :: Try to find Visual Studio
+    set VS_PATH=
     for /f "tokens=*" %%i in ('vswhere -latest -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath 2^>nul') do set VS_PATH=%%i
     
     if defined VS_PATH (
         call "%VS_PATH%\Common7\Tools\VsDevCmd.bat"
     ) else (
-        echo Попытка использования стандартного пути MSVC...
+        echo Trying standard MSVC paths...
         if exist "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat" (
             call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat"
         ) else if exist "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" (
             call "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat"
+        ) else if exist "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat" (
+            call "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat"
         ) else (
-            echo НЕ УДАЛОСЬ найти среду компиляции MSVC
-            echo Пропускаем компиляцию C++
+            echo FAILED to find MSVC build environment
+            echo Skipping C++ compilation
             goto :SKIP_CPP
         )
     )
     
-    echo Компиляция C++ приложения...
+    echo Compiling C++ application...
     cl /EHsc /O2 /Fe:"%OUTPUT_DIR%\App\BakeryCoffeeApp.exe" main.cpp kernel32.lib user32.lib
     if %errorlevel% neq 0 (
-        echo ОШИБКА: Не удалось скомпилировать C++ приложение!
-        echo Но ядро собрано успешно.
+        echo ERROR: Failed to compile C++ application!
+        echo But core was built successfully.
         goto :SKIP_CPP
     )
-    echo C++ приложение успешно скомпилировано!
+    echo C++ application compiled successfully!
     echo.
     
     :SKIP_CPP
 ) else (
     echo ================================================
-    echo    ПРОПУСК СБОРКИ C++ ПРИЛОЖЕНИЯ
+    echo    SKIPPING C++ APPLICATION BUILD
     echo ================================================
     echo.
-    echo Для сборки C++ части установите:
-    echo - Visual Studio 2019/2022 с компонентом "Разработка на C++"
-    echo - ИЛИ Visual Studio Build Tools
+    echo To build C++ part, please install:
+    echo - Visual Studio 2019/2022 with "Desktop development with C++"
+    echo - OR Visual Studio Build Tools
     echo.
-    echo После установки запустите этот скрипт снова.
+    echo After installation, run this script again.
     echo.
 )
 
-:: Создание файла запуска
+:: Create launcher file
 echo ================================================
-echo    СОЗДАНИЕ ФАЙЛА ЗАПУСКА
+echo    CREATING LAUNCHER FILE
 echo ================================================
 echo.
 
 (
 echo @echo off
-echo chcp 65001 ^> nul
-echo title Пекарня-Кофейня - Рабочее место продавца
+echo chcp 65001 ^> nul 2>&1
+echo title Bakery Coffee - Seller Workstation
 echo.
-echo Запуск системы...
+echo Starting system...
 echo.
 echo CD /D "%%~dp0App"
 echo BakeryCoffeeApp.exe
-echo if %errorlevel% neq 0 ^(
+echo if %%errorlevel%% neq 0 ^(
 echo     echo.
-echo     echo ОШИБКА ЗАПУСКА ПРИЛОЖЕНИЯ
-echo     echo Убедитесь, что все файлы на месте
+echo     echo APPLICATION START ERROR
+echo     echo Make sure all files are in place
 echo     pause
 echo ^)
 ) > "%OUTPUT_DIR%\START.bat"
 
-echo Файл запуска создан: START.bat
+echo Launcher file created: START.bat
 echo.
 
-:: Создание README
+:: Create README
 (
-echo СИСТЕМА УПРАВЛЕНИЯ ПЕКАРНЕЙ-КОФЕЙНЕЙ
+echo BAKERY COFFEE MANAGEMENT SYSTEM
 echo =====================================
 echo.
-echo Структура:
-echo - Core/ - Ядро системы на C# (.NET 6)
-echo - App/  - Приложение на C++
+echo Structure:
+echo - Core/ - System core written in C# (.NET 6)
+echo - App/  - Application written in C++
 echo.
-echo ВАЖНО: Ядро является обязательным компонентом!
-echo Без файла BakeryCoffeeCore.dll приложение не запустится.
+echo IMPORTANT: Core is a mandatory component!
+echo Without BakeryCoffeeCore.dll the application will not start.
 echo.
-echo Запуск:
-echo 1. Дважды кликните на START.bat
-echo 2. Или запустите App/BakeryCoffeeApp.exe напрямую
+echo Launch:
+echo 1. Double-click START.bat
+echo 2. Or run App/BakeryCoffeeApp.exe directly
 echo.
-echo Требования:
-echo - .NET 6.0 Runtime (для ядра)
-echo - Windows 7 и выше
+echo Requirements:
+echo - .NET 6.0 Runtime (for core)
+echo - Windows 7 or higher
 echo.
 ) > "%OUTPUT_DIR%\README.txt"
 
-echo README создан.
+echo README created.
 echo.
 
-:: Итог
+:: Summary
 echo ================================================
-echo    СБОРКА ЗАВЕРШЕНА!
+echo    BUILD COMPLETED!
 echo ================================================
 echo.
-echo Выходная папка: %OUTPUT_DIR%
+echo Output directory: %OUTPUT_DIR%
 echo.
-echo Содержимое:
+echo Contents:
 dir /b "%OUTPUT_DIR%"
 echo.
 dir /b "%OUTPUT_DIR%\App"
 echo.
 dir /b "%OUTPUT_DIR%\Core"
 echo.
-echo Для запуска программы:
-echo   1. Скопируйте папку Build в нужное место
-echo   2. Запустите START.bat
+echo To run the program:
+echo   1. Copy the Build folder to desired location
+echo   2. Run START.bat
 echo.
 echo ================================================
 

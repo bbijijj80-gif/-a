@@ -1,0 +1,52 @@
+```
+# Build artifacts
+*.bat
+*.exe
+*.dll
+*.obj
+*.lib
+*.pdb
+*.ilk
+*.exp
+*.so
+*.dylib
+*.a
+*.o
+
+# Dependencies
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.egg-info/
+build/
+dist/
+target/
+.gradle/
+.mypy_cache/
+.pytest_cache/
+
+# Logs and temporary files
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+.env.*
+.local
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+```
